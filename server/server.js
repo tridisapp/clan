@@ -10,6 +10,10 @@ const { Server } = require('socket.io');
 
 const User        = require('./models/User');
 const ServerModel = require('./models/Server');
+const Message     = require('./models/Message');
+
+// Map des utilisateurs connectés { userId => count }
+const onlineUsers = new Map();
 
 const app    = express();
 const server = http.createServer(app);
@@ -65,7 +69,7 @@ app.post('/login', async (req, res) => {
   if (!u || !(await bcrypt.compare(password, u.passwordHash)))
     return res.status(401).json({ error: 'Identifiants invalides' });
   const token = jwt.sign({ id: u._id, username }, process.env.JWT_SECRET);
-  res.json({ token, username });
+  res.json({ token, username, id: u._id });
 });
 
 // Get my servers
@@ -105,12 +109,51 @@ app.post('/servers/join', authHttp, async (req, res) => {
   res.json({ name: sv.name });
 });
 
+// Liste des canaux et membres d'un serveur
+app.get('/servers/:name/details', authHttp, async (req, res) => {
+  const sv = await ServerModel.findOne({ name: req.params.name }).populate('members', 'username').lean();
+  if (!sv || !sv.members.find(m => m._id.equals(req.user.id))) {
+    return res.status(404).json({ error: 'Serveur inconnu' });
+  }
+  const members = sv.members.map(m => ({
+    username: m.username,
+    online: onlineUsers.has(String(m._id))
+  }));
+  res.json({ channels: sv.channels, members, owner: String(sv.owner) });
+});
+
+// Créer un canal
+app.post('/servers/:name/channels', authHttp, async (req, res) => {
+  const { name: channelName } = req.body;
+  if (!channelName) return res.status(400).json({ error: 'Nom requis' });
+  const sv = await ServerModel.findOne({ name: req.params.name });
+  if (!sv) return res.status(404).json({ error: 'Serveur inconnu' });
+  if (String(sv.owner) !== req.user.id) return res.status(403).json({ error: 'Non autorisé' });
+  if (!sv.channels.includes(channelName)) {
+    sv.channels.push(channelName);
+    await sv.save();
+  }
+  res.status(201).json({ channel: channelName });
+});
+
+// Récupérer les messages d'un canal
+app.get('/servers/:name/messages/:channel', authHttp, async (req, res) => {
+  const sv = await ServerModel.findOne({ name: req.params.name });
+  if (!sv || !sv.members.includes(req.user.id))
+    return res.status(404).json({ error: 'Serveur inconnu' });
+  const messages = await Message.find({ server: sv._id, channel: req.params.channel })
+    .sort({ createdAt: 1 })
+    .lean();
+  res.json({ messages: messages.map(m => ({ user: m.user, message: m.message })) });
+});
+
 // ========== SOCKET.IO ==========
 
 io.use((socket, next) => {
   try {
     const payload = jwt.verify(socket.handshake.auth.token, process.env.JWT_SECRET);
     socket.user = payload.username;
+    socket.userId = payload.id;
     next();
   } catch {
     next(new Error('Auth failed'));
@@ -118,12 +161,28 @@ io.use((socket, next) => {
 });
 
 io.on('connection', socket => {
+  // marquer l'utilisateur en ligne
+  const count = onlineUsers.get(socket.userId) || 0;
+  onlineUsers.set(socket.userId, count + 1);
+
   socket.on('join room', room => {
     for (const r of socket.rooms) if (r !== socket.id) socket.leave(r);
     socket.join(room);
   });
   socket.on('chat message', ({ room, message }) => {
+    const [serverName, channel] = room.split('/');
+    ServerModel.findOne({ name: serverName }).then(sv => {
+      if (sv) {
+        new Message({ server: sv._id, channel, user: socket.user, message }).save();
+      }
+    });
     io.to(room).emit('chat message', { user: socket.user, message, room });
+  });
+
+  socket.on('disconnect', () => {
+    const cnt = (onlineUsers.get(socket.userId) || 1) - 1;
+    if (cnt <= 0) onlineUsers.delete(socket.userId);
+    else onlineUsers.set(socket.userId, cnt);
   });
 });
 

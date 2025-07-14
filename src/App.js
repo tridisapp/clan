@@ -11,11 +11,16 @@ function App() {
   const [stage, setStage]       = useState('login');    // 'login'|'signup'|'menu'|'create'|'join'|'chat'
   const [token, setToken]       = useState(localStorage.getItem('token') || '');
   const [username, setUsername] = useState(localStorage.getItem('username') || '');
+  const [userId, setUserId]     = useState(localStorage.getItem('userId') || '');
 
   const [u, setU] = useState(''), [p, setP] = useState('');
 
   const [servers, setServers]   = useState([]);         // liste { name, code }
   const [selected, setSelected] = useState('');         // nom du serveur actif
+  const [channels, setChannels] = useState([]);        // canaux du serveur
+  const [selectedChan, setSelectedChan] = useState('');
+  const [members, setMembers] = useState([]);          // membres du serveur
+  const [owner, setOwner] = useState('');
   const [msgList, setMsgList]   = useState([]);         // messages du room
   const [input, setInput]       = useState('');
   const [socket, setSocket]     = useState(null);
@@ -23,14 +28,16 @@ function App() {
   // Nouveaux états pour les formulaires
   const [newName, setNewName]   = useState('');
   const [joinCode, setJoinCode] = useState('');
+  const [newChanName, setNewChanName] = useState('');
 
   // Persist token+username
   useEffect(() => {
     if (token && username) {
       localStorage.setItem('token', token);
       localStorage.setItem('username', username);
+      localStorage.setItem('userId', userId);
     }
-  }, [token, username]);
+  }, [token, username, userId]);
 
   // Après connexion, charger mes serveurs
   useEffect(() => {
@@ -46,18 +53,46 @@ function App() {
     }
   }, [stage, token]);
 
-  // Initialiser Socket.IO dès qu’un serveur est sélectionné
+  // Charger les détails d'un serveur
   useEffect(() => {
     if (selected) {
+      axios.get(`${API}/servers/${selected}/details`, {
+        headers: { Authorization: `Bearer ${token}` }
+      }).then(res => {
+        setChannels(res.data.channels);
+        setMembers(res.data.members);
+        setOwner(res.data.owner);
+        setSelectedChan(res.data.channels[0] || '');
+      }).catch(() => {
+        setChannels([]);
+        setMembers([]);
+      });
+    }
+  }, [selected, token]);
+
+  // Initialiser Socket.IO dès qu’un serveur est sélectionné
+  useEffect(() => {
+    if (selected && selectedChan) {
+      const room = `${selected}/${selectedChan}`;
       const s = io(API, { auth: { token } });
-      s.emit('join room', selected);
+      s.emit('join room', room);
       s.on('chat message', m => {
-        if (m.room === selected) setMsgList(prev => [...prev, m]);
+        if (m.room === room) setMsgList(prev => [...prev, m]);
       });
       setSocket(s);
       return () => s.disconnect();
     }
-  }, [selected, token]);
+  }, [selected, selectedChan, token]);
+
+  // Charger l'historique des messages
+  useEffect(() => {
+    if (selected && selectedChan) {
+      axios.get(`${API}/servers/${selected}/messages/${selectedChan}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      }).then(res => setMsgList(res.data.messages))
+        .catch(() => setMsgList([]));
+    }
+  }, [selected, selectedChan, token]);
 
   // Callback signup
   const onSignedUp = name => {
@@ -72,6 +107,7 @@ function App() {
       const res = await axios.post(`${API}/login`, { username: u, password: p });
       setToken(res.data.token);
       setUsername(res.data.username);
+      setUserId(res.data.id);
       setStage('chat');
     } catch {
       alert('Erreur de connexion');
@@ -120,8 +156,21 @@ function App() {
   // Envoi d’un message
   const send = () => {
     if (socket && input.trim()) {
-      socket.emit('chat message', { room: selected, message: input });
+      socket.emit('chat message', { room: `${selected}/${selectedChan}`, message: input });
       setInput('');
+    }
+  };
+
+  const createChannel = async () => {
+    if (!newChanName) return;
+    try {
+      await axios.post(`${API}/servers/${selected}/channels`, { name: newChanName }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setChannels(prev => [...prev, newChanName]);
+      setNewChanName('');
+    } catch (err) {
+      alert(err.response?.data?.error || 'Erreur');
     }
   };
 
@@ -210,6 +259,8 @@ function App() {
               onClick={()=>{
                 setSelected(s.name);
                 setMsgList([]);
+                setChannels([]);
+                setSelectedChan('');
               }}
             >
               {s.name[0].toUpperCase()}
@@ -217,9 +268,36 @@ function App() {
           ))}
         </ul>
       </aside>
+      <aside className="channelbar">
+        <div style={{ marginBottom:8 }}>
+          <strong>{selected}</strong>
+        </div>
+        <ul className="channel-list">
+          {channels.map(c => (
+            <li
+              key={c}
+              className={`channel ${c===selectedChan?'active':''}`}
+              onClick={()=>{ setSelectedChan(c); }}
+            >#{c}</li>
+          ))}
+        </ul>
+        {owner===userId && (
+          <div style={{ marginTop:10 }}>
+            <input
+              placeholder="Nouveau canal"
+              value={newChanName}
+              onChange={e=>setNewChanName(e.target.value)}
+              onKeyDown={e=>e.key==='Enter'&&createChannel()}
+              style={{ width:'100%', marginTop:8 }}
+            />
+            <button onClick={createChannel} style={{ width:'100%', marginTop:4 }}>+
+            </button>
+          </div>
+        )}
+      </aside>
       <section className="chat">
         <header>
-          Salon : {selected}
+          {selected} / {selectedChan}
           {current && (
             <div style={{ fontSize:'0.9em', color:'#ccc', marginTop:4 }}>
               Invitation : <code>{current.code}</code>
@@ -241,6 +319,14 @@ function App() {
           <button onClick={send}>Envoyer</button>
         </footer>
       </section>
+      <aside className="memberbar">
+        <strong>Membres</strong>
+        {members.map(m => (
+          <div key={m.username} className="member">
+            {m.username} - {m.online ? 'en ligne' : 'hors ligne'}
+          </div>
+        ))}
+      </aside>
     </div>
   );
 }

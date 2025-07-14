@@ -3,12 +3,13 @@ import React, { useState, useEffect } from 'react';
 import io    from 'socket.io-client';
 import axios from 'axios';
 import Signup from './Signup';
+import Profile from './Profile';
 import './App.css';
 
 const API = 'http://127.0.0.1:3001';
 
 function App() {
-  const [stage, setStage]       = useState('login');    // 'login'|'signup'|'menu'|'create'|'join'|'chat'
+  const [stage, setStage]       = useState('login');    // 'login'|'signup'|'menu'|'create'|'join'|'chat'|'profile'
   const [token, setToken]       = useState(localStorage.getItem('token') || '');
   const [username, setUsername] = useState(localStorage.getItem('username') || '');
   const [userId, setUserId]     = useState(localStorage.getItem('userId') || '');
@@ -244,10 +245,24 @@ function App() {
     );
   }
 
+  if (stage === 'profile') {
+    return (
+      <Profile
+        token={token}
+        onClose={()=>setStage('chat')}
+        onUpdate={data=>{
+          setUsername(data.username);
+          setToken(data.token);
+        }}
+      />
+    );
+  }
+
   // Chat principal
   return (
     <div className="container">
       <aside className="sidebar">
+        <button onClick={()=>setStage('profile')}>⚙️</button>
         <button onClick={()=>setStage('create')}>➕</button>
         <button onClick={()=>setStage('join')}>➡️</button>
         <ul className="server-list">
@@ -322,8 +337,9 @@ function App() {
       <aside className="memberbar">
         <strong>Membres</strong>
         {members.map(m => (
-          <div key={m.username} className="member">
-            {m.username} - {m.online ? 'en ligne' : 'hors ligne'}
+          <div key={m.username} className="member" style={{ display:'flex', alignItems:'center', marginBottom:4 }}>
+            {m.avatar && <img src={m.avatar} alt="av" style={{ width:24, height:24, borderRadius:'50%', marginRight:4 }} />}
+            <span>{m.username} - {m.online ? 'en ligne' : 'hors ligne'}</span>
           </div>
         ))}
       </aside>

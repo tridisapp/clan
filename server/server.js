@@ -72,6 +72,30 @@ app.post('/login', async (req, res) => {
   res.json({ token, username, id: u._id });
 });
 
+// Récupérer mon profil
+app.get('/me', authHttp, async (req, res) => {
+  const u = await User.findById(req.user.id).lean();
+  if (!u) return res.status(404).json({ error: 'Utilisateur introuvable' });
+  res.json({ username: u.username, avatar: u.avatar || '', banner: u.banner || '' });
+});
+
+// Mettre à jour mon profil
+app.put('/me', authHttp, async (req, res) => {
+  const { username, password, avatar, banner } = req.body;
+  const updates = {};
+  if (username) updates.username = username;
+  if (password) updates.passwordHash = await bcrypt.hash(password, 10);
+  if (avatar !== undefined) updates.avatar = avatar;
+  if (banner !== undefined) updates.banner = banner;
+  try {
+    const u = await User.findByIdAndUpdate(req.user.id, updates, { new: true });
+    const token = jwt.sign({ id: u._id, username: u.username }, process.env.JWT_SECRET);
+    res.json({ username: u.username, avatar: u.avatar || '', banner: u.banner || '', token });
+  } catch {
+    res.status(400).json({ error: 'Mise à jour impossible' });
+  }
+});
+
 // Get my servers
 app.get('/my-servers', authHttp, async (req, res) => {
   const list = await ServerModel.find({ members: req.user.id }).lean();
@@ -111,12 +135,13 @@ app.post('/servers/join', authHttp, async (req, res) => {
 
 // Liste des canaux et membres d'un serveur
 app.get('/servers/:name/details', authHttp, async (req, res) => {
-  const sv = await ServerModel.findOne({ name: req.params.name }).populate('members', 'username').lean();
+  const sv = await ServerModel.findOne({ name: req.params.name }).populate('members', 'username avatar').lean();
   if (!sv || !sv.members.find(m => m._id.equals(req.user.id))) {
     return res.status(404).json({ error: 'Serveur inconnu' });
   }
   const members = sv.members.map(m => ({
     username: m.username,
+    avatar: m.avatar || '',
     online: onlineUsers.has(String(m._id))
   }));
   res.json({ channels: sv.channels, members, owner: String(sv.owner) });

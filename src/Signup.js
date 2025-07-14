@@ -1,6 +1,7 @@
 // src/Signup.js
 import React, { useState } from 'react';
 import axios from 'axios';
+import './App.css';
 
 const API_URL = 'http://127.0.0.1:3001';
 
@@ -22,22 +23,15 @@ export default function Signup({ onSignedUp }) {
   };
 
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      height: '100vh', backgroundColor: '#2f3136', color: '#fff'
-    }}>
-      <form onSubmit={handleSignup} style={{
-        display: 'flex', flexDirection: 'column', width: '300px',
-        padding: '20px', backgroundColor: '#36393f', borderRadius: '8px'
-      }}>
-        <h2 style={{ textAlign: 'center' }}>Inscription</h2>
+    <div className="centered" style={{ color:'#fff' }}>
+      <form onSubmit={handleSignup} className="form" style={{ width:'300px' }}>
+        <h2>Inscription</h2>
         <input
           type="text"
           placeholder="Utilisateur"
           value={username}
           onChange={e => setUsername(e.target.value)}
           required
-          style={{ marginBottom: '10px', padding: '8px' }}
         />
         <input
           type="password"
@@ -45,14 +39,8 @@ export default function Signup({ onSignedUp }) {
           value={password}
           onChange={e => setPassword(e.target.value)}
           required
-          style={{ marginBottom: '10px', padding: '8px' }}
         />
-        <button type="submit" style={{
-          padding: '10px', backgroundColor: '#7289da',
-          color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer'
-        }}>
-          S’inscrire
-        </button>
+        <button type="submit">S’inscrire</button>
       </form>
     </div>
   );

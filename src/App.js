@@ -199,19 +199,20 @@ function App() {
   return (
     <div className="container">
       <aside className="sidebar">
-        <button onClick={()=>setStage('create')}>➕ Créer</button>
-        <button onClick={()=>setStage('join')}>➡️ Rejoindre</button>
-        <ul>
+        <button onClick={()=>setStage('create')}>➕</button>
+        <button onClick={()=>setStage('join')}>➡️</button>
+        <ul className="server-list">
           {servers.map(s => (
             <li
               key={s.name}
-              className={s.name===selected?'active':''}
+              className={`server ${s.name===selected?'active':''}`}
+              title={s.name}
               onClick={()=>{
                 setSelected(s.name);
                 setMsgList([]);
               }}
             >
-              {s.name}
+              {s.name[0].toUpperCase()}
             </li>
           ))}
         </ul>

@@ -9,7 +9,13 @@ body { font-family: Arial, sans-serif; }
 
 .container { display:flex; height:100vh; }
 .sidebar { width:80px; background:#202225; padding:10px 0; box-sizing:border-box; display:flex; flex-direction:column; align-items:center; }
+.channelbar { width:150px; background:#2b2d31; color:#fff; padding:10px; box-sizing:border-box; }
+.memberbar { width:150px; background:#2b2d31; color:#fff; padding:10px; box-sizing:border-box; overflow-y:auto; }
 .sidebar button { width:48px; height:48px; margin-bottom:12px; background:#5865f2; color:#fff; border:none; border-radius:50%; cursor:pointer; font-size:20px; display:flex; align-items:center; justify-content:center; }
+.channel-list { list-style:none; padding:0; margin:0; }
+.channel { padding:6px; cursor:pointer; }
+.channel.active { background:#5865f2; }
+.member { padding:4px 0; font-size:14px; }
 .server-list { list-style:none; padding:0; margin:0; width:100%; display:flex; flex-direction:column; align-items:center; }
 .server { width:48px; height:48px; margin-bottom:12px; background:#36393f; color:#b9bbbe; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; font-weight:bold; }
 .server.active { background:#5865f2; color:#fff; }

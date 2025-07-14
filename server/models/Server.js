@@ -17,6 +17,10 @@ const serverSchema = new mongoose.Schema({
     required: true,
     unique: true
   },
+  channels: {
+    type: [String],
+    default: ['general']
+  },
   members: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
